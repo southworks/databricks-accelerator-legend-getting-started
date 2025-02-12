@@ -1,4 +1,3 @@
-// Parameters
 @allowed([
   'new'
   'existing'
@@ -21,7 +20,6 @@ param sku string = 'standard'
 // Variables
 var deploymentId = guid(resourceGroup().id)
 var deploymentIdShort = substring(deploymentId, 0, 8)
-var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
 var managedResourceGroupName = 'databricks-rg-${databricksResourceName}-${uniqueString(databricksResourceName, resourceGroup().id)}'
 var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedResourceGroupName), 90))
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
@@ -68,6 +66,7 @@ resource databricksRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
+// Deployment Script
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'setup-databricks-script'
   location: resourceGroup().location
@@ -78,24 +77,88 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       cd ~
 
       # Install Databricks CLI
+      echo "Installing Databricks CLI..."
       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
 
-      # Clone the accelerator repo
-      databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub
+      # Configure Databricks CLI
+      echo "Configuring Databricks CLI..."
+      cat << EOF > ~/.databrickscfg
+      [DEFAULT]
+      host = https://${DATABRICKS_HOST}
+      azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}
+      auth_type = azure-cli
+      EOF
 
-      # Create cluster using job-template
-      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json
-      notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
-      jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
+      # Verify configuration
+      echo "Verifying Databricks CLI configuration..."
+      databricks configure list
 
-      # Submit the job and capture job ID
-      job_id=$(databricks jobs submit --json @./job.json | jq -r '.job_id')
-      echo "{\"job_id\": \"$job_id\"}" > $AZ_SCRIPTS_OUTPUT_PATH
+      # Create cluster
+      echo "Creating cluster..."
+      cluster_config='{
+        "cluster_name": "legend-cluster",
+        "spark_version": "10.4.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "num_workers": 1,
+        "spark_conf": {
+          "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+        },
+        "autotermination_minutes": 120
+      }'
+
+      cluster_id=$(databricks clusters create --json "$cluster_config" | jq -r '.cluster_id')
+      echo "Created cluster with ID: $cluster_id"
+
+      # Install libraries
+      echo "Installing libraries..."
+      libraries_config='{
+        "libraries": [
+          {
+            "maven": {
+              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "legend-delta==0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "PyYAML==6.0.2"
+            }
+          }
+        ]
+      }'
+
+      databricks libraries install --cluster-id "$cluster_id" --json "$libraries_config"
+
+      # Create directories
+      echo "Creating directories..."
+      databricks workspace mkdirs /legend
+      databricks fs mkdirs dbfs:/legend/data
+
+      # Upload Legend JAR
+      echo "Uploading Legend JAR..."
+      databricks fs cp employee-model-entities-0.0.1-SNAPSHOT.jar dbfs:/legend/jars/
+      databricks libraries install --cluster-id "$cluster_id" --jar "dbfs:/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
+
+      # Upload notebook and data
+      echo "Uploading notebook and data..."
+      databricks workspace import 01_legend_delta.py /legend/01_legend_delta --language PYTHON --format SOURCE
+      databricks fs cp MOCK_DATA.json dbfs:/legend/data/
+
+      # Save cluster ID for output
+      echo "{\"clusterId\":\"$cluster_id\"}" > $AZ_SCRIPTS_OUTPUT_PATH
     '''
     environmentVariables: [
       {
         name: 'DATABRICKS_AZURE_RESOURCE_ID'
         value: databricks.id
+      }
+      {
+        name: 'DATABRICKS_HOST'
+        value: 'adb-${databricks.properties.workspaceUrl}'
       }
       {
         name: 'ARM_CLIENT_ID'
@@ -105,12 +168,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         name: 'ARM_USE_MSI'
         value: 'true'
       }
-      {
-        name: 'ACCELERATOR_REPO_NAME'
-        value: acceleratorRepoName
-      }
     ]
-    timeout: 'PT20M'
+    timeout: 'PT30M'
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'PT1H'
   }
@@ -127,4 +186,4 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 
 // Outputs
 output databricksWorkspaceUrl string = 'https://${databricks.properties.workspaceUrl}'
-output databricksJobUrl string = 'https://${databricks.properties.workspaceUrl}/#job/${deploymentScript.properties.outputs.job_id}'
+output clusterUrl string = 'https://${databricks.properties.workspaceUrl}/#setting/clusters/${deploymentScript.properties.outputs.clusterId}/configuration'

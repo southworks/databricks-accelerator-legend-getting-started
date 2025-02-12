@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "18033138635664900583"
+      "templateHash": "11323287343877516044"
     }
   },
   "parameters": {
@@ -45,7 +45,6 @@
   "variables": {
     "deploymentId": "[guid(resourceGroup().id)]",
     "deploymentIdShort": "[substring(variables('deploymentId'), 0, 8)]",
-    "acceleratorRepoName": "databricks-accelerator-legend-getting-started",
     "managedResourceGroupName": "[format('databricks-rg-{0}-{1}', parameters('databricksResourceName'), uniqueString(parameters('databricksResourceName'), resourceGroup().id))]",
     "trimmedMRGName": "[substring(variables('managedResourceGroupName'), 0, min(length(variables('managedResourceGroupName')), 90))]",
     "managedResourceGroupId": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('trimmedMRGName'))]"
@@ -98,11 +97,15 @@
       "kind": "AzureCLI",
       "properties": {
         "azCliVersion": "2.9.1",
-        "scriptContent": "      cd ~\r\n\r\n      # Install Databricks CLI\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Clone the accelerator repo\r\n      databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub\r\n\r\n      # Create cluster using job-template\r\n      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json\r\n      notebook_path=\"/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME\"\r\n      jq \".tasks[0].notebook_task.notebook_path = \\\"${notebook_path}\\\"\" job-template.json > job.json\r\n\r\n      # Submit the job and capture job ID\r\n      job_id=$(databricks jobs submit --json @./job.json | jq -r '.job_id')\r\n      echo \"{\\\"job_id\\\": \\\"$job_id\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n    ",
+        "scriptContent": "      cd ~\r\n\r\n      # Install Databricks CLI\r\n      echo \"Installing Databricks CLI...\"\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Configure Databricks CLI\r\n      echo \"Configuring Databricks CLI...\"\r\n      cat << EOF > ~/.databrickscfg\r\n      [DEFAULT]\r\n      host = https://${DATABRICKS_HOST}\r\n      azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}\r\n      auth_type = azure-cli\r\n      EOF\r\n\r\n      # Verify configuration\r\n      echo \"Verifying Databricks CLI configuration...\"\r\n      databricks configure list\r\n\r\n      # Create cluster\r\n      echo \"Creating cluster...\"\r\n      cluster_config='{\r\n        \"cluster_name\": \"legend-cluster\",\r\n        \"spark_version\": \"10.4.x-scala2.12\",\r\n        \"node_type_id\": \"Standard_DS3_v2\",\r\n        \"num_workers\": 1,\r\n        \"spark_conf\": {\r\n          \"spark.serializer\": \"org.apache.spark.serializer.KryoSerializer\"\r\n        },\r\n        \"autotermination_minutes\": 120\r\n      }'\r\n\r\n      cluster_id=$(databricks clusters create --json \"$cluster_config\" | jq -r '.cluster_id')\r\n      echo \"Created cluster with ID: $cluster_id\"\r\n\r\n      # Install libraries\r\n      echo \"Installing libraries...\"\r\n      libraries_config='{\r\n        \"libraries\": [\r\n          {\r\n            \"maven\": {\r\n              \"coordinates\": \"org.finos.legend-community:legend-delta:0.1.10\"\r\n            }\r\n          },\r\n          {\r\n            \"pypi\": {\r\n              \"package\": \"legend-delta==0.1.10\"\r\n            }\r\n          },\r\n          {\r\n            \"pypi\": {\r\n              \"package\": \"PyYAML==6.0.2\"\r\n            }\r\n          }\r\n        ]\r\n      }'\r\n\r\n      databricks libraries install --cluster-id \"$cluster_id\" --json \"$libraries_config\"\r\n\r\n      # Create directories\r\n      echo \"Creating directories...\"\r\n      databricks workspace mkdirs /legend\r\n      databricks fs mkdirs dbfs:/legend/data\r\n\r\n      # Upload Legend JAR\r\n      echo \"Uploading Legend JAR...\"\r\n      databricks fs cp employee-model-entities-0.0.1-SNAPSHOT.jar dbfs:/legend/jars/\r\n      databricks libraries install --cluster-id \"$cluster_id\" --jar \"dbfs:/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar\"\r\n\r\n      # Upload notebook and data\r\n      echo \"Uploading notebook and data...\"\r\n      databricks workspace import 01_legend_delta.py /legend/01_legend_delta --language PYTHON --format SOURCE\r\n      databricks fs cp MOCK_DATA.json dbfs:/legend/data/\r\n\r\n      # Save cluster ID for output\r\n      echo \"{\\\"clusterId\\\":\\\"$cluster_id\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n    ",
         "environmentVariables": [
           {
             "name": "DATABRICKS_AZURE_RESOURCE_ID",
             "value": "[resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))]"
+          },
+          {
+            "name": "DATABRICKS_HOST",
+            "value": "[format('adb-{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
           },
           {
             "name": "ARM_CLIENT_ID",
@@ -111,13 +114,9 @@
           {
             "name": "ARM_USE_MSI",
             "value": "true"
-          },
-          {
-            "name": "ACCELERATOR_REPO_NAME",
-            "value": "[variables('acceleratorRepoName')]"
           }
         ],
-        "timeout": "PT20M",
+        "timeout": "PT30M",
         "cleanupPreference": "OnSuccess",
         "retentionInterval": "PT1H"
       },
@@ -139,9 +138,9 @@
       "type": "string",
       "value": "[format('https://{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
     },
-    "databricksJobUrl": {
+    "clusterUrl": {
       "type": "string",
-      "value": "[format('https://{0}/#job/{1}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl, reference(resourceId('Microsoft.Resources/deploymentScripts', 'setup-databricks-script'), '2023-08-01').outputs.job_id)]"
+      "value": "[format('https://{0}/#setting/clusters/{1}/configuration', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl, reference(resourceId('Microsoft.Resources/deploymentScripts', 'setup-databricks-script'), '2023-08-01').outputs.clusterId)]"
     }
   }
 }
