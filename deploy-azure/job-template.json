@@ -1,1 +1,50 @@
-.
+{
+  "run_name": "legend_setup",
+  "timeout_seconds": 600,
+  "tasks": [
+    {
+      "task_key": "legend_setup",
+      "description": "Setup Legend environment and dependencies",
+      "notebook_task": {
+        "notebook_path": "<replace-path-here>"
+      },
+      "new_cluster": {
+        "num_workers": 1,
+        "node_type_id": "Standard_DS3_v2",
+        "spark_version": "10.4.x-scala2.12",
+        "spark_conf": {
+          "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+        },
+        "spark_env_vars": {
+          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
+        },
+        "libraries": [
+          {
+            "maven": {
+              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "legend-delta==0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "PyYAML==6.0.2"
+            }
+          },
+          {
+            "jar": {
+              "path": "dbfs:/FileStore/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
+            }
+          }
+        ]
+      },
+      "timeout_seconds": 600
+    }
+  ],
+  "queue": {
+    "enabled": true
+  }
+}

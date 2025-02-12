@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "15606501753774721921"
+      "templateHash": "18033138635664900583"
     }
   },
   "parameters": {
@@ -45,6 +45,7 @@
   "variables": {
     "deploymentId": "[guid(resourceGroup().id)]",
     "deploymentIdShort": "[substring(variables('deploymentId'), 0, 8)]",
+    "acceleratorRepoName": "databricks-accelerator-legend-getting-started",
     "managedResourceGroupName": "[format('databricks-rg-{0}-{1}', parameters('databricksResourceName'), uniqueString(parameters('databricksResourceName'), resourceGroup().id))]",
     "trimmedMRGName": "[substring(variables('managedResourceGroupName'), 0, min(length(variables('managedResourceGroupName')), 90))]",
     "managedResourceGroupId": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('trimmedMRGName'))]"
@@ -88,12 +89,59 @@
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort')))]",
         "[resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "setup-databricks-script",
+      "location": "[resourceGroup().location]",
+      "kind": "AzureCLI",
+      "properties": {
+        "azCliVersion": "2.9.1",
+        "scriptContent": "      cd ~\r\n\r\n      # Install Databricks CLI\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Clone the accelerator repo\r\n      databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub\r\n\r\n      # Create cluster using job-template\r\n      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json\r\n      notebook_path=\"/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME\"\r\n      jq \".tasks[0].notebook_task.notebook_path = \\\"${notebook_path}\\\"\" job-template.json > job.json\r\n\r\n      # Submit the job and capture job ID\r\n      job_id=$(databricks jobs submit --json @./job.json | jq -r '.job_id')\r\n      echo \"{\\\"job_id\\\": \\\"$job_id\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n    ",
+        "environmentVariables": [
+          {
+            "name": "DATABRICKS_AZURE_RESOURCE_ID",
+            "value": "[resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))]"
+          },
+          {
+            "name": "ARM_CLIENT_ID",
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), '2023-07-31-preview').clientId]"
+          },
+          {
+            "name": "ARM_USE_MSI",
+            "value": "true"
+          },
+          {
+            "name": "ACCELERATOR_REPO_NAME",
+            "value": "[variables('acceleratorRepoName')]"
+          }
+        ],
+        "timeout": "PT20M",
+        "cleanupPreference": "OnSuccess",
+        "retentionInterval": "PT1H"
+      },
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))))]": {}
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), 'Contributor', resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort')))]",
+        "[resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))]"
+      ]
     }
   ],
   "outputs": {
     "databricksWorkspaceUrl": {
       "type": "string",
       "value": "[format('https://{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
+    },
+    "databricksJobUrl": {
+      "type": "string",
+      "value": "[format('https://{0}/#job/{1}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl, reference(resourceId('Microsoft.Resources/deploymentScripts', 'setup-databricks-script'), '2023-08-01').outputs.job_id)]"
     }
   }
 }

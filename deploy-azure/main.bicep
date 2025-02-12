@@ -21,7 +21,7 @@ param sku string = 'standard'
 // Variables
 var deploymentId = guid(resourceGroup().id)
 var deploymentIdShort = substring(deploymentId, 0, 8)
-//var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
+var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
 var managedResourceGroupName = 'databricks-rg-${databricksResourceName}-${uniqueString(databricksResourceName, resourceGroup().id)}'
 var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedResourceGroupName), 90))
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
@@ -68,5 +68,63 @@ resource databricksRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
+resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: 'setup-databricks-script'
+  location: resourceGroup().location
+  kind: 'AzureCLI'
+  properties: {
+    azCliVersion: '2.9.1'
+    scriptContent: '''
+      cd ~
+
+      # Install Databricks CLI
+      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+
+      # Clone the accelerator repo
+      databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub
+
+      # Create cluster using job-template
+      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json
+      notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
+      jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
+
+      # Submit the job and capture job ID
+      job_id=$(databricks jobs submit --json @./job.json | jq -r '.job_id')
+      echo "{\"job_id\": \"$job_id\"}" > $AZ_SCRIPTS_OUTPUT_PATH
+    '''
+    environmentVariables: [
+      {
+        name: 'DATABRICKS_AZURE_RESOURCE_ID'
+        value: databricks.id
+      }
+      {
+        name: 'ARM_CLIENT_ID'
+        value: managedIdentity.properties.clientId
+      }
+      {
+        name: 'ARM_USE_MSI'
+        value: 'true'
+      }
+      {
+        name: 'ACCELERATOR_REPO_NAME'
+        value: acceleratorRepoName
+      }
+    ]
+    timeout: 'PT20M'
+    cleanupPreference: 'OnSuccess'
+    retentionInterval: 'PT1H'
+  }
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentity.id}': {}
+    }
+  }
+  dependsOn: [
+    databricksRoleAssignment
+  ]
+}
+
 // Outputs
 output databricksWorkspaceUrl string = 'https://${databricks.properties.workspaceUrl}'
+output databricksJobUrl string = 'https://${databricks.properties.workspaceUrl}/#job/${deploymentScript.properties.outputs.job_id}'
