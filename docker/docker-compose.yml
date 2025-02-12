@@ -1,0 +1,117 @@
+version: "3.8"
+services:
+
+  mongodb:
+    container_name: $MONGO_SERVICE_NAME
+    image: mongo:$MONGO_IMAGE_VERSION
+    ports:
+      - $MONGO_PORT:$MONGO_PORT
+    networks:
+      - legend
+    env_file:
+      - $BUILD_DIR/environment
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: $MONGO_USER
+      MONGO_INITDB_ROOT_PASSWORD: $MONGO_PASSWORD
+    command: --auth
+
+  legend-sdlc:
+    container_name: $LEGEND_SDLC_SERVICE_NAME
+    image: finos/legend-sdlc-server:$LEGEND_SDLC_IMAGE_VERSION
+    depends_on:
+      - mongodb
+    ports:
+      - $LEGEND_SDLC_PORT:$LEGEND_SDLC_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/sdlc:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-sdlc.sh
+
+  legend-engine:
+    container_name: $LEGEND_ENGINE_SERVICE_NAME
+    image: finos/legend-engine-server:$LEGEND_ENGINE_IMAGE_VERSION
+    depends_on:
+      - mongodb
+    ports:
+      - $LEGEND_ENGINE_PORT:$LEGEND_ENGINE_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/engine:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-engine.sh
+
+  legend-studio:
+    container_name: $LEGEND_STUDIO_SERVICE_NAME
+    image: finos/legend-studio:$LEGEND_STUDIO_IMAGE_VERSION
+    depends_on:
+      - legend-sdlc
+      - legend-engine
+    ports:
+      - $LEGEND_STUDIO_PORT:$LEGEND_STUDIO_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/studio:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-studio.sh
+
+  legend-depot-server:
+    container_name: $LEGEND_DEPOT_SERVER_SERVICE_NAME
+    image: finos/legend-depot-server:$LEGEND_DEPOT_SERVER_IMAGE_VERSION
+    depends_on:
+      - legend-studio
+    ports:
+      - $LEGEND_DEPOT_SERVER_PORT:$LEGEND_DEPOT_SERVER_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/depot-server:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-depot-server.sh
+
+  legend-depot-store:
+    container_name: $LEGEND_DEPOT_STORE_SERVICE_NAME
+    image: finos/legend-depot-store-server:$LEGEND_DEPOT_STORE_IMAGE_VERSION
+    depends_on:
+      - legend-studio
+    ports:
+      - $LEGEND_DEPOT_STORE_PORT:$LEGEND_DEPOT_STORE_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/depot-store:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-depot-store.sh
+
+  legend-query:
+    container_name: $LEGEND_QUERY_SERVICE_NAME
+    image: finos/legend-query:$LEGEND_QUERY_IMAGE_VERSION
+    depends_on:
+      - legend-depot-store
+      - legend-depot-server
+    ports:
+      - $LEGEND_QUERY_PORT:$LEGEND_QUERY_PORT
+    networks:
+      - legend
+    volumes:
+      - $BUILD_DIR/configs/query:/config
+      - $BUILD_DIR/scripts:/scripts
+    env_file:
+      - $BUILD_DIR/environment
+    command: /scripts/run-query.sh
+
+networks:
+  legend: {}

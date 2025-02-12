@@ -1,0 +1,22 @@
+{
+  "appName": "LEGEND",
+  "env": "databricks",
+  "sdlc": {
+    "url": "__LEGEND_SDLC_URL__/api"
+  },
+  "engine": {
+    "url": "__LEGEND_ENGINE_URL__/api"
+  },
+  "depot": {
+    "url": "__LEGEND_DEPOT_SERVER_URL__/depot/api"
+  },
+  "documentation": {
+    "url": "https://legend.finos.org"
+  },
+  "extensions": {
+    "core": {
+      "TEMPORARY__disableSDLCProjectCreation": false,
+      "TEMPORARY__disableServiceRegistration": true
+    }
+  }
+}
