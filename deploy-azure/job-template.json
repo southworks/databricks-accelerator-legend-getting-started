@@ -6,7 +6,7 @@
       "task_key": "legend_setup",
       "description": "Setup Legend environment and dependencies",
       "notebook_task": {
-        "notebook_path": "<replace-path-here>"
+        "notebook_path": "/Users/${ARM_CLIENT_ID}/databricks-accelerator-legend-getting-started/notebooks/01_legend_delta"
       },
       "new_cluster": {
         "num_workers": 1,
