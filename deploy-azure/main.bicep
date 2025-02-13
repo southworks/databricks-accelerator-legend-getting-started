@@ -74,26 +74,46 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   properties: {
     azCliVersion: '2.9.1'
     scriptContent: '''
+      set -x  # Enable command tracing
+
       cd ~
+      echo "Starting script execution..."
 
       # Install Databricks CLI
       echo "Installing Databricks CLI..."
-      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      if ! curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh; then
+        echo "Failed to install Databricks CLI"
+        exit 1
+      fi
+
+      echo "Databricks CLI installed successfully"
+      which databricks || echo "databricks command not found"
+      databricks version || echo "Failed to get version"
 
       # Configure Databricks CLI
       echo "Configuring Databricks CLI..."
-      cat << EOF > ~/.databrickscfg
-      [DEFAULT]
-      host = https://${DATABRICKS_HOST}
-      azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}
-      auth_type = azure-cli
-      EOF
+      config_content="[DEFAULT]
+host = https://${DATABRICKS_HOST}
+azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}
+auth_type = azure-cli"
 
-      # Verify configuration
-      echo "Verifying Databricks CLI configuration..."
-      databricks configure list
+      echo "$config_content" > ~/.databrickscfg
 
-      # Create cluster
+      # Test connection
+      echo "Testing Databricks connection..."
+      if ! databricks workspace list / --output json; then
+        echo "Failed to connect to Databricks workspace"
+        echo "Debug information:"
+        ls -la ~/.databrickscfg
+        cat ~/.databrickscfg
+        echo "Environment variables:"
+        env | grep -i databricks
+        exit 1
+      fi
+
+      echo "Successfully connected to Databricks workspace"
+
+      # Attempt to create cluster
       echo "Creating cluster..."
       cluster_config='{
         "cluster_name": "legend-cluster",
@@ -106,50 +126,22 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         "autotermination_minutes": 120
       }'
 
-      cluster_id=$(databricks clusters create --json "$cluster_config" | jq -r '.cluster_id')
-      echo "Created cluster with ID: $cluster_id"
+      echo "Cluster configuration:"
+      echo "$cluster_config"
 
-      # Install libraries
-      echo "Installing libraries..."
-      libraries_config='{
-        "libraries": [
-          {
-            "maven": {
-              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
-            }
-          },
-          {
-            "pypi": {
-              "package": "legend-delta==0.1.10"
-            }
-          },
-          {
-            "pypi": {
-              "package": "PyYAML==6.0.2"
-            }
-          }
-        ]
-      }'
+      # Create cluster and capture output
+      cluster_response=$(databricks clusters create --json "$cluster_config")
+      create_status=$?
 
-      databricks libraries install --cluster-id "$cluster_id" --json "$libraries_config"
+      echo "Cluster creation response:"
+      echo "$cluster_response"
 
-      # Create directories
-      echo "Creating directories..."
-      databricks workspace mkdirs /legend
-      databricks fs mkdirs dbfs:/legend/data
+      if [ $create_status -ne 0 ]; then
+        echo "Failed to create cluster"
+        exit 1
+      fi
 
-      # Upload Legend JAR
-      echo "Uploading Legend JAR..."
-      databricks fs cp employee-model-entities-0.0.1-SNAPSHOT.jar dbfs:/legend/jars/
-      databricks libraries install --cluster-id "$cluster_id" --jar "dbfs:/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
-
-      # Upload notebook and data
-      echo "Uploading notebook and data..."
-      databricks workspace import 01_legend_delta.py /legend/01_legend_delta --language PYTHON --format SOURCE
-      databricks fs cp MOCK_DATA.json dbfs:/legend/data/
-
-      # Save cluster ID for output
-      echo "{\"clusterId\":\"$cluster_id\"}" > $AZ_SCRIPTS_OUTPUT_PATH
+      echo "Script completed successfully"
     '''
     environmentVariables: [
       {
@@ -158,7 +150,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       }
       {
         name: 'DATABRICKS_HOST'
-        value: 'adb-${databricks.properties.workspaceUrl}'
+        value: databricks.properties.workspaceUrl
       }
       {
         name: 'ARM_CLIENT_ID'
@@ -183,7 +175,3 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     databricksRoleAssignment
   ]
 }
-
-// Outputs
-output databricksWorkspaceUrl string = 'https://${databricks.properties.workspaceUrl}'
-output clusterUrl string = 'https://${databricks.properties.workspaceUrl}/#setting/clusters/${deploymentScript.properties.outputs.clusterId}/configuration'

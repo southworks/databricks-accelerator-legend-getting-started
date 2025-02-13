@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "11323287343877516044"
+      "templateHash": "2200518833609386691"
     }
   },
   "parameters": {
@@ -97,7 +97,7 @@
       "kind": "AzureCLI",
       "properties": {
         "azCliVersion": "2.9.1",
-        "scriptContent": "      cd ~\r\n\r\n      # Install Databricks CLI\r\n      echo \"Installing Databricks CLI...\"\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Configure Databricks CLI\r\n      echo \"Configuring Databricks CLI...\"\r\n      cat << EOF > ~/.databrickscfg\r\n      [DEFAULT]\r\n      host = https://${DATABRICKS_HOST}\r\n      azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}\r\n      auth_type = azure-cli\r\n      EOF\r\n\r\n      # Verify configuration\r\n      echo \"Verifying Databricks CLI configuration...\"\r\n      databricks configure list\r\n\r\n      # Create cluster\r\n      echo \"Creating cluster...\"\r\n      cluster_config='{\r\n        \"cluster_name\": \"legend-cluster\",\r\n        \"spark_version\": \"10.4.x-scala2.12\",\r\n        \"node_type_id\": \"Standard_DS3_v2\",\r\n        \"num_workers\": 1,\r\n        \"spark_conf\": {\r\n          \"spark.serializer\": \"org.apache.spark.serializer.KryoSerializer\"\r\n        },\r\n        \"autotermination_minutes\": 120\r\n      }'\r\n\r\n      cluster_id=$(databricks clusters create --json \"$cluster_config\" | jq -r '.cluster_id')\r\n      echo \"Created cluster with ID: $cluster_id\"\r\n\r\n      # Install libraries\r\n      echo \"Installing libraries...\"\r\n      libraries_config='{\r\n        \"libraries\": [\r\n          {\r\n            \"maven\": {\r\n              \"coordinates\": \"org.finos.legend-community:legend-delta:0.1.10\"\r\n            }\r\n          },\r\n          {\r\n            \"pypi\": {\r\n              \"package\": \"legend-delta==0.1.10\"\r\n            }\r\n          },\r\n          {\r\n            \"pypi\": {\r\n              \"package\": \"PyYAML==6.0.2\"\r\n            }\r\n          }\r\n        ]\r\n      }'\r\n\r\n      databricks libraries install --cluster-id \"$cluster_id\" --json \"$libraries_config\"\r\n\r\n      # Create directories\r\n      echo \"Creating directories...\"\r\n      databricks workspace mkdirs /legend\r\n      databricks fs mkdirs dbfs:/legend/data\r\n\r\n      # Upload Legend JAR\r\n      echo \"Uploading Legend JAR...\"\r\n      databricks fs cp employee-model-entities-0.0.1-SNAPSHOT.jar dbfs:/legend/jars/\r\n      databricks libraries install --cluster-id \"$cluster_id\" --jar \"dbfs:/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar\"\r\n\r\n      # Upload notebook and data\r\n      echo \"Uploading notebook and data...\"\r\n      databricks workspace import 01_legend_delta.py /legend/01_legend_delta --language PYTHON --format SOURCE\r\n      databricks fs cp MOCK_DATA.json dbfs:/legend/data/\r\n\r\n      # Save cluster ID for output\r\n      echo \"{\\\"clusterId\\\":\\\"$cluster_id\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n    ",
+        "scriptContent": "      set -x  # Enable command tracing\r\n\r\n      cd ~\r\n      echo \"Starting script execution...\"\r\n\r\n      # Install Databricks CLI\r\n      echo \"Installing Databricks CLI...\"\r\n      if ! curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh; then\r\n        echo \"Failed to install Databricks CLI\"\r\n        exit 1\r\n      fi\r\n\r\n      echo \"Databricks CLI installed successfully\"\r\n      which databricks || echo \"databricks command not found\"\r\n      databricks version || echo \"Failed to get version\"\r\n\r\n      # Configure Databricks CLI\r\n      echo \"Configuring Databricks CLI...\"\r\n      config_content=\"[DEFAULT]\r\nhost = https://${DATABRICKS_HOST}\r\nazure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}\r\nauth_type = azure-cli\"\r\n\r\n      echo \"$config_content\" > ~/.databrickscfg\r\n\r\n      # Test connection\r\n      echo \"Testing Databricks connection...\"\r\n      if ! databricks workspace list / --output json; then\r\n        echo \"Failed to connect to Databricks workspace\"\r\n        echo \"Debug information:\"\r\n        ls -la ~/.databrickscfg\r\n        cat ~/.databrickscfg\r\n        echo \"Environment variables:\"\r\n        env | grep -i databricks\r\n        exit 1\r\n      fi\r\n\r\n      echo \"Successfully connected to Databricks workspace\"\r\n\r\n      # Attempt to create cluster\r\n      echo \"Creating cluster...\"\r\n      cluster_config='{\r\n        \"cluster_name\": \"legend-cluster\",\r\n        \"spark_version\": \"10.4.x-scala2.12\",\r\n        \"node_type_id\": \"Standard_DS3_v2\",\r\n        \"num_workers\": 1,\r\n        \"spark_conf\": {\r\n          \"spark.serializer\": \"org.apache.spark.serializer.KryoSerializer\"\r\n        },\r\n        \"autotermination_minutes\": 120\r\n      }'\r\n\r\n      echo \"Cluster configuration:\"\r\n      echo \"$cluster_config\"\r\n\r\n      # Create cluster and capture output\r\n      cluster_response=$(databricks clusters create --json \"$cluster_config\")\r\n      create_status=$?\r\n\r\n      echo \"Cluster creation response:\"\r\n      echo \"$cluster_response\"\r\n\r\n      if [ $create_status -ne 0 ]; then\r\n        echo \"Failed to create cluster\"\r\n        exit 1\r\n      fi\r\n\r\n      echo \"Script completed successfully\"\r\n    ",
         "environmentVariables": [
           {
             "name": "DATABRICKS_AZURE_RESOURCE_ID",
@@ -105,7 +105,7 @@
           },
           {
             "name": "DATABRICKS_HOST",
-            "value": "[format('adb-{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
+            "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl]"
           },
           {
             "name": "ARM_CLIENT_ID",
@@ -132,15 +132,5 @@
         "[resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName'))]"
       ]
     }
-  ],
-  "outputs": {
-    "databricksWorkspaceUrl": {
-      "type": "string",
-      "value": "[format('https://{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
-    },
-    "clusterUrl": {
-      "type": "string",
-      "value": "[format('https://{0}/#setting/clusters/{1}/configuration', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl, reference(resourceId('Microsoft.Resources/deploymentScripts', 'setup-databricks-script'), '2023-08-01').outputs.clusterId)]"
-    }
-  }
+  ]
 }
