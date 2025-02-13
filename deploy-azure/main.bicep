@@ -23,17 +23,18 @@ var deploymentIdShort = substring(deploymentId, 0, 8)
 var managedResourceGroupName = 'databricks-rg-${databricksResourceName}-${uniqueString(databricksResourceName, resourceGroup().id)}'
 var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedResourceGroupName), 90))
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
+var location = resourceGroup().location
 
 // Managed Identity
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
   name: 'dbw-id-${deploymentIdShort}'
-  location: resourceGroup().location
+  location: location
 }
 
 // Databricks Workspace
 resource newDatabricks 'Microsoft.Databricks/workspaces@2024-05-01' = if (newOrExistingWorkspace == 'new') {
   name: databricksResourceName
-  location: resourceGroup().location
+  location: location
   sku: {
     name: sku
   }
@@ -69,7 +70,7 @@ resource databricksRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
 // Deployment Script
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'setup-databricks-script'
-  location: resourceGroup().location
+  location: location
   kind: 'AzureCLI'
   properties: {
     azCliVersion: '2.9.1'
@@ -112,7 +113,6 @@ auth_type = azure-cli"
       if [ ! -z "$existing_cluster" ]; then
         echo "Found existing cluster. Deleting..."
         databricks clusters permanent-delete --cluster-id "$existing_cluster"
-        # Wait a bit for deletion to complete
         sleep 10
       fi
 
@@ -141,16 +141,19 @@ auth_type = azure-cli"
       cluster_id=$(echo "$cluster_response" | jq -r '.cluster_id')
       echo "Created new cluster with ID: $cluster_id"
 
+      # Clone repo
+      echo "Cloning repo..."
+      repo_url="https://github.com/southworks/databricks-accelerator-legend-getting-started"
+      if ! databricks repos create "$repo_url" github; then
+        echo "Failed to clone repo"
+        exit 1
+      fi
+
       # Install libraries
       echo "Installing libraries..."
       libraries_config='{
         "cluster_id": "'$cluster_id'",
         "libraries": [
-          {
-            "maven": {
-              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
-            }
-          },
           {
             "pypi": {
               "package": "legend-delta==0.1.10"
@@ -166,55 +169,6 @@ auth_type = azure-cli"
 
       if ! databricks libraries install --json "$libraries_config"; then
         echo "Failed to install libraries"
-        exit 1
-      fi
-
-      # Create workspace directories
-      echo "Creating workspace directories..."
-      if ! databricks workspace mkdirs /legend; then
-        echo "Failed to create /legend directory"
-        exit 1
-      fi
-
-      # Create notebook content
-      echo "Creating notebook..."
-      cat << EOF > 01_legend_delta.py
-      # Databricks notebook source
-      from legend.delta import LegendClasspathLoader
-      legend = LegendClasspathLoader().loadResources()
-      display(pd.DataFrame(legend.get_entities(), columns=['legend_entity']))
-      EOF
-
-      # Upload notebook
-      echo "Uploading notebook..."
-      if ! databricks workspace import -l PYTHON -f SOURCE -o 01_legend_delta.py /legend/01_legend_delta; then
-        echo "Failed to upload notebook"
-        exit 1
-      fi
-
-      # Setup DBFS
-      echo "Setting up DBFS..."
-      if ! databricks fs ls dbfs:/; then
-        echo "Failed to access DBFS"
-        exit 1
-      fi
-
-      echo "Creating DBFS directories..."
-      if ! databricks fs mkdirs dbfs:/FileStore/legend/data; then
-        echo "Failed to create DBFS directory"
-        exit 1
-      fi
-
-      # Create mock data
-      echo "Creating mock data..."
-      cat << EOF > MOCK_DATA.json
-      {"id":1,"firstName":"Kliment","lastName":"Dubose","birthDate":"1994-06-06","gender":"Male","sme":"SQL","joinedDate":"2022-11-30","highFives":257}
-      EOF
-
-      # Upload data file
-      echo "Uploading data file..."
-      if ! databricks fs cp MOCK_DATA.json dbfs:/FileStore/legend/data/; then
-        echo "Failed to upload data file"
         exit 1
       fi
 
@@ -252,3 +206,5 @@ auth_type = azure-cli"
     databricksRoleAssignment
   ]
 }
+
+output databricksWorkspaceUrl string = 'https://${databricks.properties.workspaceUrl}'
