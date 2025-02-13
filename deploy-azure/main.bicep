@@ -103,41 +103,118 @@ auth_type = azure-cli"
       echo "Testing Databricks connection..."
       if ! databricks workspace list / --output json; then
         echo "Failed to connect to Databricks workspace"
-        echo "Debug information:"
-        ls -la ~/.databrickscfg
-        cat ~/.databrickscfg
-        echo "Environment variables:"
-        env | grep -i databricks
         exit 1
       fi
 
-      echo "Successfully connected to Databricks workspace"
+      # Check and delete existing cluster
+      echo "Checking for existing legend-cluster..."
+      existing_cluster=$(databricks clusters list --output json | jq -r '.clusters[] | select(.cluster_name == "legend-cluster") | .cluster_id')
+      if [ ! -z "$existing_cluster" ]; then
+        echo "Found existing cluster. Deleting..."
+        databricks clusters permanent-delete --cluster-id "$existing_cluster"
+        # Wait a bit for deletion to complete
+        sleep 10
+      fi
 
-      # Attempt to create cluster
-      echo "Creating cluster..."
+      # Create new single-node cluster
+      echo "Creating new cluster..."
       cluster_config='{
         "cluster_name": "legend-cluster",
         "spark_version": "10.4.x-scala2.12",
         "node_type_id": "Standard_DS3_v2",
-        "num_workers": 1,
         "spark_conf": {
-          "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+          "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+          "spark.master": "local[*]",
+          "spark.databricks.cluster.profile": "singleNode"
         },
+        "custom_tags": {
+          "ResourceClass": "SingleNode"
+        },
+        "spark_env_vars": {
+          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
+        },
+        "num_workers": 0,
         "autotermination_minutes": 120
       }'
 
-      echo "Cluster configuration:"
-      echo "$cluster_config"
-
-      # Create cluster and capture output
       cluster_response=$(databricks clusters create --json "$cluster_config")
-      create_status=$?
+      cluster_id=$(echo "$cluster_response" | jq -r '.cluster_id')
+      echo "Created new cluster with ID: $cluster_id"
 
-      echo "Cluster creation response:"
-      echo "$cluster_response"
+      # Install libraries
+      echo "Installing libraries..."
+      libraries_config='{
+        "cluster_id": "'$cluster_id'",
+        "libraries": [
+          {
+            "maven": {
+              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "legend-delta==0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "PyYAML==6.0.2"
+            }
+          }
+        ]
+      }'
 
-      if [ $create_status -ne 0 ]; then
-        echo "Failed to create cluster"
+      if ! databricks libraries install --json "$libraries_config"; then
+        echo "Failed to install libraries"
+        exit 1
+      fi
+
+      # Create workspace directories
+      echo "Creating workspace directories..."
+      if ! databricks workspace mkdirs /legend; then
+        echo "Failed to create /legend directory"
+        exit 1
+      fi
+
+      # Create notebook content
+      echo "Creating notebook..."
+      cat << EOF > 01_legend_delta.py
+      # Databricks notebook source
+      from legend.delta import LegendClasspathLoader
+      legend = LegendClasspathLoader().loadResources()
+      display(pd.DataFrame(legend.get_entities(), columns=['legend_entity']))
+      EOF
+
+      # Upload notebook
+      echo "Uploading notebook..."
+      if ! databricks workspace import -l PYTHON -f SOURCE -o 01_legend_delta.py /legend/01_legend_delta; then
+        echo "Failed to upload notebook"
+        exit 1
+      fi
+
+      # Setup DBFS
+      echo "Setting up DBFS..."
+      if ! databricks fs ls dbfs:/; then
+        echo "Failed to access DBFS"
+        exit 1
+      fi
+
+      echo "Creating DBFS directories..."
+      if ! databricks fs mkdirs dbfs:/FileStore/legend/data; then
+        echo "Failed to create DBFS directory"
+        exit 1
+      fi
+
+      # Create mock data
+      echo "Creating mock data..."
+      cat << EOF > MOCK_DATA.json
+      {"id":1,"firstName":"Kliment","lastName":"Dubose","birthDate":"1994-06-06","gender":"Male","sme":"SQL","joinedDate":"2022-11-30","highFives":257}
+      EOF
+
+      # Upload data file
+      echo "Uploading data file..."
+      if ! databricks fs cp MOCK_DATA.json dbfs:/FileStore/legend/data/; then
+        echo "Failed to upload data file"
         exit 1
       fi
 
