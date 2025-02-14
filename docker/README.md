@@ -149,11 +149,32 @@ mvn clean install
    - PyPI: `legend-delta==0.1.10`
    - Upload JAR: `employee-model-entities-0.0.1-SNAPSHOT.jar`
 
-3. Upload Sample Data:
+3. Configure Legend Studio Connection:
+   - Go to Compute -> Your cluster -> Configuration -> Advanced options
+   - Note down these values:
+     - Hostname: Found in Server Hostname (e.g., `adb-<workspace-id>.<random-number>.azuredatabricks.net`)
+     - HTTP Path: Found in JDBC/ODBC tab, use the Cluster HTTP Path format: `sql/protocolv1/o/<workspace-id>/<cluster-id>`
+   - Create a Personal Access Token in Azure Databricks (User Settings -> Developer -> Access tokens)
+   - Update `vault.properties` with your token:
+     ```properties
+     com.databricks.cloud.azure = dapi<your-token>
+     ```
+
+4. Configure Connection in Legend Studio:
+   - Open your model
+   - Find the connection definition (e.g., `databricks::lakehouse::employee`)
+   - Update the connection details:
+     - Hostname: Use the Server Hostname from step 3
+     - Protocol: `https`
+     - Port: `443`
+     - HttpPath: Use the Cluster HTTP Path from step 3
+     - AccessTokenRef: `com.databricks.cloud.azure`
+
+5. Upload Sample Data:
    - In the Databricks UI, click on New -> Add or upload data -> Upload files to DBFS
    - Upload the `notebooks/data/MOCK_DATA.json` file
 
-4. Import and Run Notebook:
+6. Import and Run Notebook:
    - Import `01_legend_delta.py`
    - Attach to cluster
    - Run all cells
