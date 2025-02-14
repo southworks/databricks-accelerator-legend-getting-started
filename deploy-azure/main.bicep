@@ -202,16 +202,21 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Create DBFS directories
       echo "Creating DBFS directories..."
       if ! databricks fs mkdirs dbfs:/FileStore/legend/data/; then
-      echo "Failed to create DBFS directories"
-      exit 1
+        echo "Failed to create DBFS directories"
+        exit 1
       fi
 
-      # Upload mock data from repo
-      echo "Uploading mock data..."
-      mock_data_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json"
-      if ! databricks fs cp "$mock_data_path" dbfs:/FileStore/legend/data/MOCK_DATA.json; then
-      echo "Failed to upload mock data"
-      exit 1
+      # Export mock data from workspace and upload to DBFS
+      echo "Exporting mock data from workspace..."
+      if ! databricks workspace export "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json" > mock_data.json; then
+        echo "Failed to export mock data from workspace"
+        exit 1
+      fi
+
+      echo "Uploading to DBFS..."
+      if ! databricks fs cp mock_data.json dbfs:/FileStore/legend/data/MOCK_DATA.json; then
+        echo "Failed to upload mock data to DBFS"
+        exit 1
       fi
 
       # Install libraries
