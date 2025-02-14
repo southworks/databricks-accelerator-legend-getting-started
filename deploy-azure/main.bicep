@@ -100,10 +100,22 @@ auth_type = azure-cli"
 
       echo "$config_content" > ~/.databrickscfg
 
-      # Test connection
-      echo "Testing Databricks connection..."
-      if ! databricks workspace list / --output json; then
-        echo "Failed to connect to Databricks workspace"
+      # Test connection and wait for storage initialization
+      echo "Testing connection and waiting for storage initialization..."
+      max_attempts=30
+      attempt=0
+      while [ $attempt -lt $max_attempts ]; do
+        if databricks fs ls dbfs:/; then
+          echo "Storage initialized successfully"
+          break
+        fi
+        echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
+        sleep 10
+        attempt=$((attempt + 1))
+      done
+
+      if [ $attempt -eq $max_attempts ]; then
+        echo "Timeout waiting for storage initialization"
         exit 1
       fi
 
