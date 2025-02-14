@@ -84,8 +84,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Install Databricks CLI
       echo "Installing Databricks CLI..."
       if ! curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh; then
-        echo "Failed to install Databricks CLI"
-        exit 1
+      echo "Failed to install Databricks CLI"
+      exit 1
       fi
 
       echo "Databricks CLI installed successfully"
@@ -106,48 +106,48 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       max_attempts=30
       attempt=0
       while [ $attempt -lt $max_attempts ]; do
-        if databricks fs ls dbfs:/; then
-          echo "Storage initialized successfully"
-          break
-        fi
-        echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
-        sleep 10
-        attempt=$((attempt + 1))
+      if databricks fs ls dbfs:/; then
+        echo "Storage initialized successfully"
+        break
+      fi
+      echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
+      sleep 10
+      attempt=$((attempt + 1))
       done
 
       if [ $attempt -eq $max_attempts ]; then
-        echo "Timeout waiting for storage initialization"
-        exit 1
+      echo "Timeout waiting for storage initialization"
+      exit 1
       fi
 
       # Check and delete existing cluster
       echo "Checking for existing legend-cluster..."
       existing_cluster=$(databricks clusters list --output json | jq -r '.clusters[] | select(.cluster_name == "legend-cluster") | .cluster_id')
       if [ ! -z "$existing_cluster" ]; then
-        echo "Found existing cluster. Deleting..."
-        databricks clusters permanent-delete --cluster-id "$existing_cluster"
-        sleep 10
+      echo "Found existing cluster. Deleting..."
+      databricks clusters permanent-delete --cluster-id "$existing_cluster"
+      sleep 10
       fi
 
       # Create new single-node cluster
       echo "Creating new cluster..."
       cluster_config='{
-        "cluster_name": "legend-cluster",
-        "spark_version": "10.4.x-scala2.12",
-        "node_type_id": "Standard_DS3_v2",
-        "spark_conf": {
-          "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
-          "spark.master": "local[*]",
-          "spark.databricks.cluster.profile": "singleNode"
-        },
-        "custom_tags": {
-          "ResourceClass": "SingleNode"
-        },
-        "spark_env_vars": {
-          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
-        },
-        "num_workers": 0,
-        "autotermination_minutes": 120
+      "cluster_name": "legend-cluster",
+      "spark_version": "10.4.x-scala2.12",
+      "node_type_id": "Standard_DS3_v2",
+      "spark_conf": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.master": "local[*]",
+        "spark.databricks.cluster.profile": "singleNode"
+      },
+      "custom_tags": {
+        "ResourceClass": "SingleNode"
+      },
+      "spark_env_vars": {
+        "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
+      },
+      "num_workers": 0,
+      "autotermination_minutes": 120
       }'
 
       cluster_response=$(databricks clusters create --json "$cluster_config")
@@ -159,75 +159,75 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       repo_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
       existing_repo=$(databricks repos list --output json | jq -r ".[] | select(.path == \"$repo_path\") | .id")
       if [ ! -z "$existing_repo" ]; then
-        echo "Found existing repo. Deleting..."
-        databricks repos delete --repo-id "$existing_repo"
-        sleep 10
+      echo "Found existing repo. Deleting..."
+      databricks repos delete --repo-id "$existing_repo"
+      sleep 10
       fi
 
-      # Clone repo
+      # Clone repo and get ID
       echo "Cloning repo..."
       repo_url="https://github.com/southworks/${ACCELERATOR_REPO_NAME}"
-      if ! databricks repos create "$repo_url" github; then
-        echo "Failed to clone repo"
-        exit 1
+      repo_response=$(databricks repos create "$repo_url" github)
+      repo_id=$(echo "$repo_response" | jq -r '.id')
+      echo "Created repo with ID: $repo_id"
+
+      if [ -z "$repo_id" ]; then
+      echo "Failed to get repo ID"
+      exit 1
       fi
 
-      # Debug: List workspace contents
-      echo "Listing workspace contents..."
-      echo "Root directory:"
-      databricks workspace ls / --output json
-      echo "Users directory:"
-      databricks workspace ls /Users --output json
-      echo "User's directory:"
-      databricks workspace ls "/Users/${ARM_CLIENT_ID}" --output json
-      echo "Repo directory:"
-      databricks workspace ls "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}" --output json
+      # Switch to accelerator-updates branch
+      echo "Switching to accelerator-updates branch..."
+      if ! databricks repos update "$repo_id" --branch accelerator-updates; then
+      echo "Failed to switch branch"
+      exit 1
+      fi
 
       # Create DBFS directories
       echo "Creating DBFS directories..."
-      if ! databricks fs mkdirs dbfs:/legend/data/; then
-        echo "Failed to create DBFS directories"
-        exit 1
+      if ! databricks fs mkdirs dbfs:/FileStore/legend/data/; then
+      echo "Failed to create DBFS directories"
+      exit 1
       fi
 
-      # Upload mock data to DBFS
+      # Upload mock data from repo
       echo "Uploading mock data..."
       mock_data_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json"
-      if ! databricks fs cp "$mock_data_path" dbfs:/legend/data/MOCK_DATA.json; then
-        echo "Failed to upload mock data"
-        exit 1
+      if ! databricks fs cp "dbfs:${mock_data_path}" dbfs:/FileStore/legend/data/MOCK_DATA.json; then
+      echo "Failed to upload mock data"
+      exit 1
       fi
 
       # Install libraries
       echo "Installing libraries..."
       jar_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
       libraries_config='{
-        "cluster_id": "'$cluster_id'",
-        "libraries": [
-          {
-            "pypi": {
-              "package": "legend-delta==0.1.10"
-            }
-          },
-          {
-            "pypi": {
-              "package": "PyYAML==6.0.2"
-            }
-          },
-          {
-            "maven": {
-              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
-            }
-          },
-          {
-            "jar": "'$jar_path'"
+      "cluster_id": "'$cluster_id'",
+      "libraries": [
+        {
+          "pypi": {
+            "package": "legend-delta==0.1.10"
           }
-        ]
+        },
+        {
+          "pypi": {
+            "package": "PyYAML==6.0.2"
+          }
+        },
+        {
+          "maven": {
+            "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+          }
+        },
+        {
+          "jar": "'$jar_path'"
+        }
+      ]
       }'
 
       if ! databricks libraries install --json "$libraries_config"; then
-        echo "Failed to install libraries"
-        exit 1
+      echo "Failed to install libraries"
+      exit 1
       fi
 
       echo "Script completed successfully"
