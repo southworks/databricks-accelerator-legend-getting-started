@@ -176,12 +176,28 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       exit 1
       fi
 
-      # Switch to accelerator-updates branch
+      # Switch to accelerator-updates branch and wait for update
       echo "Switching to accelerator-updates branch..."
       if ! databricks repos update "$repo_id" --branch accelerator-updates; then
-      echo "Failed to switch branch"
-      exit 1
+        echo "Failed to switch branch"
+        exit 1
       fi
+
+      # Wait for repo to update and verify branch
+      echo "Waiting for repo to update..."
+      sleep 10
+      repo_info=$(databricks repos get "$repo_id")
+      current_branch=$(echo "$repo_info" | jq -r '.branch')
+      echo "Current branch: $current_branch"
+
+      if [ "$current_branch" != "accelerator-updates" ]; then
+        echo "Failed to switch to accelerator-updates branch"
+        exit 1
+      fi
+
+      # List repo contents to debug
+      echo "Listing repo contents..."
+      databricks workspace list "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
 
       # Create DBFS directories
       echo "Creating DBFS directories..."
@@ -193,7 +209,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Upload mock data from repo
       echo "Uploading mock data..."
       mock_data_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json"
-      if ! databricks fs cp "dbfs:${mock_data_path}" dbfs:/FileStore/legend/data/MOCK_DATA.json; then
+      if ! databricks fs cp "$mock_data_path" dbfs:/FileStore/legend/data/MOCK_DATA.json; then
       echo "Failed to upload mock data"
       exit 1
       fi
