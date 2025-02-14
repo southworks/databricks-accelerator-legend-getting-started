@@ -24,6 +24,7 @@ var managedResourceGroupName = 'databricks-rg-${databricksResourceName}-${unique
 var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedResourceGroupName), 90))
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
 var location = resourceGroup().location
+var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
 
 // Managed Identity
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
@@ -94,9 +95,9 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Configure Databricks CLI
       echo "Configuring Databricks CLI..."
       config_content="[DEFAULT]
-host = https://${DATABRICKS_HOST}
-azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}
-auth_type = azure-cli"
+      host = https://${DATABRICKS_HOST}
+      azure_workspace_resource_id = ${DATABRICKS_AZURE_RESOURCE_ID}
+      auth_type = azure-cli"
 
       echo "$config_content" > ~/.databrickscfg
 
@@ -153,16 +154,53 @@ auth_type = azure-cli"
       cluster_id=$(echo "$cluster_response" | jq -r '.cluster_id')
       echo "Created new cluster with ID: $cluster_id"
 
+      # Check and delete existing repo
+      echo "Checking for existing repo..."
+      repo_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
+      existing_repo=$(databricks repos list --output json | jq -r ".[] | select(.path == \"$repo_path\") | .id")
+      if [ ! -z "$existing_repo" ]; then
+        echo "Found existing repo. Deleting..."
+        databricks repos delete --repo-id "$existing_repo"
+        sleep 10
+      fi
+
       # Clone repo
       echo "Cloning repo..."
-      repo_url="https://github.com/southworks/databricks-accelerator-legend-getting-started"
+      repo_url="https://github.com/southworks/${ACCELERATOR_REPO_NAME}"
       if ! databricks repos create "$repo_url" github; then
         echo "Failed to clone repo"
         exit 1
       fi
 
+      # Debug: List workspace contents
+      echo "Listing workspace contents..."
+      echo "Root directory:"
+      databricks workspace ls / --output json
+      echo "Users directory:"
+      databricks workspace ls /Users --output json
+      echo "User's directory:"
+      databricks workspace ls "/Users/${ARM_CLIENT_ID}" --output json
+      echo "Repo directory:"
+      databricks workspace ls "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}" --output json
+
+      # Create DBFS directories
+      echo "Creating DBFS directories..."
+      if ! databricks fs mkdirs dbfs:/legend/data/; then
+        echo "Failed to create DBFS directories"
+        exit 1
+      fi
+
+      # Upload mock data to DBFS
+      echo "Uploading mock data..."
+      mock_data_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json"
+      if ! databricks fs cp "$mock_data_path" dbfs:/legend/data/MOCK_DATA.json; then
+        echo "Failed to upload mock data"
+        exit 1
+      fi
+
       # Install libraries
       echo "Installing libraries..."
+      jar_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
       libraries_config='{
         "cluster_id": "'$cluster_id'",
         "libraries": [
@@ -175,6 +213,14 @@ auth_type = azure-cli"
             "pypi": {
               "package": "PyYAML==6.0.2"
             }
+          },
+          {
+            "maven": {
+              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+            }
+          },
+          {
+            "jar": "'$jar_path'"
           }
         ]
       }'
@@ -202,6 +248,10 @@ auth_type = azure-cli"
       {
         name: 'ARM_USE_MSI'
         value: 'true'
+      }
+      {
+        name: 'ACCELERATOR_REPO_NAME'
+        value: acceleratorRepoName
       }
     ]
     timeout: 'PT30M'
