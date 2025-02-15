@@ -181,7 +181,7 @@ display(sql("DESCRIBE EXTENDED {}".format(dst_table)))
 # COMMAND ----------
 
 # Path to our sample JSON data in DBFS
-data_path = '/FileStore/tables/MOCK_DATA.json'
+data_path = '/FileStore/legend/data/MOCK_DATA.json'
 
 # COMMAND ----------
 

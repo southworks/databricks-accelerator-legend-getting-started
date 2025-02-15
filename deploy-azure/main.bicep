@@ -206,6 +206,11 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
+      if ! databricks fs mkdirs dbfs:/FileStore/legend/jars/; then
+        echo "Failed to create DBFS directories"
+        exit 1
+      fi
+
       # Export mock data from workspace and upload to DBFS
       echo "Exporting mock data from workspace..."
       if ! databricks workspace export "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/notebooks/data/MOCK_DATA.json" > mock_data.json; then
@@ -219,36 +224,48 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
-      # Install libraries
+      # Export JAR from workspace and upload to DBFS
+      echo "Exporting JAR from workspace..."
+      if ! databricks workspace export "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar" > legend.jar; then
+        echo "Failed to export JAR from workspace"
+        exit 1
+      fi
+
+      echo "Uploading JAR to DBFS..."
+      if ! databricks fs cp legend.jar dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar; then
+        echo "Failed to upload JAR to DBFS"
+        exit 1
+      fi
+
+      # Install libraries with correct JAR path
       echo "Installing libraries..."
-      jar_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
       libraries_config='{
-      "cluster_id": "'$cluster_id'",
-      "libraries": [
-        {
-          "pypi": {
-            "package": "legend-delta==0.1.10"
+        "cluster_id": "'$cluster_id'",
+        "libraries": [
+          {
+            "pypi": {
+              "package": "legend-delta==0.1.10"
+            }
+          },
+          {
+            "pypi": {
+              "package": "PyYAML==6.0.2"
+            }
+          },
+          {
+            "maven": {
+              "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+            }
+          },
+          {
+            "jar": "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
           }
-        },
-        {
-          "pypi": {
-            "package": "PyYAML==6.0.2"
-          }
-        },
-        {
-          "maven": {
-            "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
-          }
-        },
-        {
-          "jar": "'$jar_path'"
-        }
-      ]
+        ]
       }'
 
       if ! databricks libraries install --json "$libraries_config"; then
-      echo "Failed to install libraries"
-      exit 1
+        echo "Failed to install libraries"
+        exit 1
       fi
 
       echo "Script completed successfully"
