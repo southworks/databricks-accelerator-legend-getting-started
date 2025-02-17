@@ -123,22 +123,31 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Create new single-node cluster
       echo "Creating new cluster..."
       cluster_config='{
+        "num_workers": 0,
         "cluster_name": "legend-cluster",
         "spark_version": "10.4.x-scala2.12",
-        "node_type_id": "Standard_DS3_v2",
         "spark_conf": {
-          "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
-          "spark.master": "local[*]",
+          "spark.master": "local[*, 4]",
           "spark.databricks.cluster.profile": "singleNode"
         },
+        "azure_attributes": {
+          "first_on_demand": 1,
+          "availability": "ON_DEMAND_AZURE",
+          "spot_bid_max_price": -1
+        },
+        "node_type_id": "Standard_DS3_v2",
+        "driver_node_type_id": "Standard_DS3_v2",
+        "ssh_public_keys": [],
         "custom_tags": {
           "ResourceClass": "SingleNode"
         },
-        "spark_env_vars": {
-          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
-        },
-        "num_workers": 0,
-        "autotermination_minutes": 120
+        "spark_env_vars": {},
+        "autotermination_minutes": 120,
+        "enable_elastic_disk": true,
+        "init_scripts": [],
+        "enable_local_disk_encryption": false,
+        "data_security_mode": "NONE",
+        "runtime_engine": "STANDARD"
       }'
 
       cluster_response=$(databricks clusters create --json "$cluster_config")
