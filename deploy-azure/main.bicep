@@ -25,6 +25,7 @@ var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedRe
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
 var location = resourceGroup().location
 var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
+var acceleratorBranch = 'accelerator-updates'
 
 // Managed Identity
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
@@ -166,9 +167,9 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
-      # Switch to accelerator-updates branch and wait for update
-      echo "Switching to accelerator-updates branch..."
-      if ! databricks repos update "$repo_id" --branch accelerator-updates; then
+      # Switch to specified branch and wait for update
+      echo "Switching to ${ACCELERATOR_BRANCH} branch..."
+      if ! databricks repos update "$repo_id" --branch "$ACCELERATOR_BRANCH"; then
         echo "Failed to switch branch"
         exit 1
       fi
@@ -180,8 +181,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       current_branch=$(echo "$repo_info" | jq -r '.branch')
       echo "Current branch: $current_branch"
 
-      if [ "$current_branch" != "accelerator-updates" ]; then
-        echo "Failed to switch to accelerator-updates branch"
+      if [ "$current_branch" != "$ACCELERATOR_BRANCH" ]; then
+        echo "Failed to switch to ${ACCELERATOR_BRANCH} branch"
         exit 1
       fi
 
@@ -212,7 +213,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 
       # Download JAR and upload to DBFS
       echo "Downloading JAR from GitHub..."
-      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/accelerator-updates/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
+      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/${ACCELERATOR_BRANCH}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
       if ! curl -L "$jar_url" -o legend.jar; then
         echo "Failed to download JAR from GitHub"
         exit 1
@@ -282,6 +283,10 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       {
         name: 'ACCELERATOR_REPO_NAME'
         value: acceleratorRepoName
+      }
+      {
+        name: 'ACCELERATOR_BRANCH'
+        value: acceleratorBranch
       }
     ]
     timeout: 'PT30M'
