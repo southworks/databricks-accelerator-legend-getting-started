@@ -185,10 +185,6 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
-      # List repo contents to debug
-      echo "Listing repo contents..."
-      databricks workspace list "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
-
       # Create DBFS directories
       echo "Creating DBFS directories..."
       if ! databricks fs mkdirs dbfs:/FileStore/legend/data/; then
@@ -214,20 +210,26 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
-      # Export JAR from workspace and upload to DBFS
-      echo "Exporting JAR from workspace..."
-      if ! databricks workspace export "/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar" > legend.jar; then
-        echo "Failed to export JAR from workspace"
+      # Download JAR and upload to DBFS
+      echo "Downloading JAR from GitHub..."
+      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/accelerator-updates/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
+      if ! curl -L "$jar_url" -o legend.jar; then
+        echo "Failed to download JAR from GitHub"
         exit 1
       fi
 
+      echo "Creating DBFS directories..."
+      databricks fs mkdirs "dbfs:/FileStore"
+      databricks fs mkdirs "dbfs:/FileStore/legend"
+      databricks fs mkdirs "dbfs:/FileStore/legend/jars"
+
       echo "Uploading JAR to DBFS..."
-      if ! databricks fs cp legend.jar dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar; then
+      if ! databricks fs cp "legend.jar" "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"; then
         echo "Failed to upload JAR to DBFS"
         exit 1
       fi
 
-      # Install libraries with correct JAR path
+      # Install libraries
       echo "Installing libraries..."
       libraries_config='{
         "cluster_id": "'$cluster_id'",
