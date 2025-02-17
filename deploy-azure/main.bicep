@@ -84,8 +84,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Install Databricks CLI
       echo "Installing Databricks CLI..."
       if ! curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh; then
-      echo "Failed to install Databricks CLI"
-      exit 1
+        echo "Failed to install Databricks CLI"
+        exit 1
       fi
 
       echo "Databricks CLI installed successfully"
@@ -106,63 +106,44 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       max_attempts=30
       attempt=0
       while [ $attempt -lt $max_attempts ]; do
-      if databricks fs ls dbfs:/; then
-        echo "Storage initialized successfully"
-        break
-      fi
-      echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
-      sleep 10
-      attempt=$((attempt + 1))
+        if databricks fs ls dbfs:/; then
+          echo "Storage initialized successfully"
+          break
+        fi
+        echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
+        sleep 10
+        attempt=$((attempt + 1))
       done
 
       if [ $attempt -eq $max_attempts ]; then
-      echo "Timeout waiting for storage initialization"
-      exit 1
-      fi
-
-      # Check and delete existing cluster
-      echo "Checking for existing legend-cluster..."
-      existing_cluster=$(databricks clusters list --output json | jq -r '.clusters[] | select(.cluster_name == "legend-cluster") | .cluster_id')
-      if [ ! -z "$existing_cluster" ]; then
-      echo "Found existing cluster. Deleting..."
-      databricks clusters permanent-delete --cluster-id "$existing_cluster"
-      sleep 10
+        echo "Timeout waiting for storage initialization"
+        exit 1
       fi
 
       # Create new single-node cluster
       echo "Creating new cluster..."
       cluster_config='{
-      "cluster_name": "legend-cluster",
-      "spark_version": "10.4.x-scala2.12",
-      "node_type_id": "Standard_DS3_v2",
-      "spark_conf": {
-        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
-        "spark.master": "local[*]",
-        "spark.databricks.cluster.profile": "singleNode"
-      },
-      "custom_tags": {
-        "ResourceClass": "SingleNode"
-      },
-      "spark_env_vars": {
-        "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
-      },
-      "num_workers": 0,
-      "autotermination_minutes": 120
+        "cluster_name": "legend-cluster",
+        "spark_version": "10.4.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "spark_conf": {
+          "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+          "spark.master": "local[*]",
+          "spark.databricks.cluster.profile": "singleNode"
+        },
+        "custom_tags": {
+          "ResourceClass": "SingleNode"
+        },
+        "spark_env_vars": {
+          "PYSPARK_PYTHON": "/databricks/python3/bin/python3"
+        },
+        "num_workers": 0,
+        "autotermination_minutes": 120
       }'
 
       cluster_response=$(databricks clusters create --json "$cluster_config")
       cluster_id=$(echo "$cluster_response" | jq -r '.cluster_id')
       echo "Created new cluster with ID: $cluster_id"
-
-      # Check and delete existing repo
-      echo "Checking for existing repo..."
-      repo_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
-      existing_repo=$(databricks repos list --output json | jq -r ".[] | select(.path == \"$repo_path\") | .id")
-      if [ ! -z "$existing_repo" ]; then
-      echo "Found existing repo. Deleting..."
-      databricks repos delete --repo-id "$existing_repo"
-      sleep 10
-      fi
 
       # Clone repo and get ID
       echo "Cloning repo..."
@@ -172,8 +153,8 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       echo "Created repo with ID: $repo_id"
 
       if [ -z "$repo_id" ]; then
-      echo "Failed to get repo ID"
-      exit 1
+        echo "Failed to get repo ID"
+        exit 1
       fi
 
       # Switch to accelerator-updates branch and wait for update
@@ -202,12 +183,12 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       # Create DBFS directories
       echo "Creating DBFS directories..."
       if ! databricks fs mkdirs dbfs:/FileStore/legend/data/; then
-        echo "Failed to create DBFS directories"
+        echo "Failed to create data directory"
         exit 1
       fi
 
       if ! databricks fs mkdirs dbfs:/FileStore/legend/jars/; then
-        echo "Failed to create DBFS directories"
+        echo "Failed to create jars directory"
         exit 1
       fi
 
