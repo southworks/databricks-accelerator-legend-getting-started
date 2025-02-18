@@ -79,7 +79,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       echo "Installing Databricks CLI..."
       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
 
-      # Test connection and wait for storage initialization
+      # Wait for Azure Databricks resource to finish creating the MRG storage containers
       echo "Testing connection and waiting for storage initialization..."
       max_attempts=30
       attempt=0
@@ -97,7 +97,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
-      # Clone repo and get ID
+      # Clone accelerator repo and get ID
       echo "Cloning repo..."
       repo_info=$(databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub)
       REPO_ID=$(echo "$repo_info" | jq -r '.id')
@@ -127,7 +127,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
       jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
 
-      # Create and run job
+      # Create and run Databricks job
       job_page_url=$(databricks jobs submit --json @./job.json | jq -r '.run_page_url')
       echo "{\"job_page_url\": \"$job_page_url\"}" > $AZ_SCRIPTS_OUTPUT_PATH
       '''
