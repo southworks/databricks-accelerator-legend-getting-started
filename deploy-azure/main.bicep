@@ -25,16 +25,16 @@ var trimmedMRGName = substring(managedResourceGroupName, 0, min(length(managedRe
 var managedResourceGroupId = subscriptionResourceId('Microsoft.Resources/resourceGroups', trimmedMRGName)
 var location = resourceGroup().location
 var acceleratorRepoName = 'databricks-accelerator-legend-getting-started'
-var acceleratorBranch = 'accelerator-updates'
+var acceleratorBranch = 'main'
 
 // Managed Identity
-resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'dbw-id-${deploymentIdShort}'
   location: location
 }
 
 // Databricks Workspace
-resource newDatabricks 'Microsoft.Databricks/workspaces@2024-05-01' = if (newOrExistingWorkspace == 'new') {
+resource newDatabricks 'Microsoft.Databricks/workspaces@2023-02-01' = if (newOrExistingWorkspace == 'new') {
   name: databricksResourceName
   location: location
   sku: {
@@ -50,7 +50,7 @@ resource newDatabricks 'Microsoft.Databricks/workspaces@2024-05-01' = if (newOrE
   }
 }
 
-resource databricks 'Microsoft.Databricks/workspaces@2024-09-01-preview' existing = {
+resource databricks 'Microsoft.Databricks/workspaces@2023-02-01' existing = {
   name: databricksResourceName
   dependsOn: newOrExistingWorkspace == 'new' ? [newDatabricks] : []
 }

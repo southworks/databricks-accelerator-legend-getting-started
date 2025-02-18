@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "8940077672008660385"
+      "templateHash": "14876737443713688616"
     }
   },
   "parameters": {
@@ -50,19 +50,19 @@
     "managedResourceGroupId": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('trimmedMRGName'))]",
     "location": "[resourceGroup().location]",
     "acceleratorRepoName": "databricks-accelerator-legend-getting-started",
-    "acceleratorBranch": "accelerator-updates"
+    "acceleratorBranch": "main"
   },
   "resources": [
     {
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-      "apiVersion": "2023-07-31-preview",
+      "apiVersion": "2023-01-31",
       "name": "[format('dbw-id-{0}', variables('deploymentIdShort'))]",
       "location": "[variables('location')]"
     },
     {
       "condition": "[equals(parameters('newOrExistingWorkspace'), 'new')]",
       "type": "Microsoft.Databricks/workspaces",
-      "apiVersion": "2024-05-01",
+      "apiVersion": "2023-02-01",
       "name": "[parameters('databricksResourceName')]",
       "location": "[variables('location')]",
       "sku": {
@@ -84,7 +84,7 @@
       "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), 'Contributor', resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')))]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), '2023-07-31-preview').principalId]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), '2023-01-31').principalId]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
@@ -108,11 +108,11 @@
           },
           {
             "name": "DATABRICKS_HOST",
-            "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl]"
+            "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2023-02-01').workspaceUrl]"
           },
           {
             "name": "ARM_CLIENT_ID",
-            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), '2023-07-31-preview').clientId]"
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('dbw-id-{0}', variables('deploymentIdShort'))), '2023-01-31').clientId]"
           },
           {
             "name": "ARM_USE_MSI",
@@ -147,7 +147,7 @@
   "outputs": {
     "databricksWorkspaceUrl": {
       "type": "string",
-      "value": "[format('https://{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2024-09-01-preview').workspaceUrl)]"
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Databricks/workspaces', parameters('databricksResourceName')), '2023-02-01').workspaceUrl)]"
     }
   }
 }
