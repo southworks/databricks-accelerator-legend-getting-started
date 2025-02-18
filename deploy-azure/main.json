@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "14876737443713688616"
+      "templateHash": "2688057643770959431"
     }
   },
   "parameters": {
@@ -21,13 +21,6 @@
       "type": "string",
       "metadata": {
         "description": "The name of the Azure Databricks workspace to create."
-      }
-    },
-    "disablePublicIp": {
-      "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Specifies whether to deploy Azure Databricks workspace with Secure Cluster Connectivity (No Public IP) enabled or not"
       }
     },
     "sku": {
@@ -72,7 +65,7 @@
         "managedResourceGroupId": "[variables('managedResourceGroupId')]",
         "parameters": {
           "enableNoPublicIp": {
-            "value": "[parameters('disablePublicIp')]"
+            "value": false
           }
         }
       }
