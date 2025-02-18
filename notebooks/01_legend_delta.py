@@ -24,6 +24,23 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install legend-delta==0.1.10 PyYAML==6.0.2
+
+# MAGIC %scala
+# MAGIC // Add the JAR to the Spark classpath
+# MAGIC val legendDeltaJar = "org.finos.legend-community:legend-delta:0.1.10"
+# MAGIC val legendModelJar = "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
+# MAGIC
+# MAGIC // Add dependencies
+# MAGIC Class.forName("com.databricks.backend.daemon.driver.ClassLoaderProvider").
+# MAGIC   getMethod("addJarToClasspath", classOf[String]).
+# MAGIC   invoke(null, legendModelJar)
+# MAGIC
+# MAGIC // Restart Python interpreter to ensure libraries are loaded
+# MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Make sure to have the jar file of org.finos.legend-community:legend-delta:X.Y.Z and all its dependencies available in your spark classpath and a legend data model (version controlled on gitlab) previously compiled to disk or packaged as a jar file and available in your classpath. For python support, please add the corresponding library from pypi repo. See example of a configured spark cluster on databricks environment (although the same can be achieved on native spark / delta)
 

@@ -77,6 +77,9 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     azCliVersion: '2.9.1'
     scriptContent: '''
       set -e
+
+      # Install Databricks CLI
+      echo "Installing Databricks CLI..."
       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
 
       # Test connection and wait for storage initialization
@@ -97,15 +100,37 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         exit 1
       fi
 
+      # Clone repo and get ID
+      echo "Cloning repo..."
       repo_info=$(databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub)
-
       REPO_ID=$(echo "$repo_info" | jq -r '.id')
       databricks repos update ${REPO_ID} --branch ${BRANCH_NAME}
 
+      # Download Legend JAR and upload to DBFS
+      echo "Downloading Legend JAR from GitHub..."
+      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/${BRANCH_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
+      if ! curl -L "$jar_url" -o legend.jar; then
+        echo "Failed to download Legend JAR from GitHub"
+        exit 1
+      fi
+
+      echo "Creating DBFS directories..."
+      databricks fs mkdirs "dbfs:/FileStore"
+      databricks fs mkdirs "dbfs:/FileStore/legend"
+      databricks fs mkdirs "dbfs:/FileStore/legend/jars"
+
+      echo "Uploading JAR to DBFS..."
+      if ! databricks fs cp "legend.jar" "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"; then
+        echo "Failed to upload JAR to DBFS"
+        exit 1
+      fi
+
+      # Export job-template.json from workspace
       databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json
       notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
       jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
 
+      # Create and run job
       job_page_url=$(databricks jobs submit --json @./job.json | jq -r '.run_page_url')
       echo "{\"job_page_url\": \"$job_page_url\"}" > $AZ_SCRIPTS_OUTPUT_PATH
       '''
