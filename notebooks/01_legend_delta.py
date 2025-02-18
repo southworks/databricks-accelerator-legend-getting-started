@@ -1,25 +1,25 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC <img src=https://d1r5llqwmkrl74.cloudfront.net/notebooks/fsi/fs-lakehouse-logo-transparent.png width="600px">
-# MAGIC 
+# MAGIC
 # MAGIC [![DBR](https://img.shields.io/badge/DBR-10.4-red?logo=databricks&style=for-the-badge)](https://docs.databricks.com/release-notes/runtime/10.4.html)
 # MAGIC [![CLOUD](https://img.shields.io/badge/CLOUD-ALL-blue?logo=googlecloud&style=for-the-badge)](https://cloud.google.com/databricks)
 # MAGIC [![POC](https://img.shields.io/badge/POC-10_days-green?style=for-the-badge)](https://databricks.com/try-databricks)
 # MAGIC [![Maven Central](https://img.shields.io/maven-central/v/org.finos.legend-community/legend-delta.svg?style=for-the-badge)](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22legend-delta)
-# MAGIC 
-# MAGIC *In addition to the JDBC connectivity enabled to Databricks from the legend-engine itself, this project helps 
-# MAGIC organizations define data models that can be converted into efficient data pipelines, ensuring data being queried 
-# MAGIC is of high quality and availability. Raw data can be ingested as stream or batch and processed in line with the 
-# MAGIC business semantics defined from the Legend interface. Domain specific language defined in Legend Studio can be 
-# MAGIC interpreted as a series of Spark SQL operations, helping analysts create Delta Lake tables that not only guarantees 
+# MAGIC
+# MAGIC *In addition to the JDBC connectivity enabled to Databricks from the legend-engine itself, this project helps
+# MAGIC organizations define data models that can be converted into efficient data pipelines, ensuring data being queried
+# MAGIC is of high quality and availability. Raw data can be ingested as stream or batch and processed in line with the
+# MAGIC business semantics defined from the Legend interface. Domain specific language defined in Legend Studio can be
+# MAGIC interpreted as a series of Spark SQL operations, helping analysts create Delta Lake tables that not only guarantees
 # MAGIC schema definition but also complies with expectations, derivations and constraints defined by business analysts.*
-# MAGIC 
+# MAGIC
 # MAGIC ___
 # MAGIC <antoine.amend@databricks.com>
-# MAGIC 
+# MAGIC
 # MAGIC ___
-# MAGIC 
-# MAGIC 
+# MAGIC
+# MAGIC
 # MAGIC <img src='https://raw.githubusercontent.com/databricks-industry-solutions/legend-getting-started/main/images/reference_architecture.png' width=800>
 
 # COMMAND ----------
@@ -40,11 +40,15 @@
 
 # COMMAND ----------
 
+# Load the Legend model definitions from our installed JAR
+# LegendClasspathLoader searches for Legend resources in the Java classpath
 from legend.delta import LegendClasspathLoader
 legend = LegendClasspathLoader().loadResources()
 
 # COMMAND ----------
 
+# Display all entities defined in our Legend model
+# This helps verify that our model loaded correctly
 import pandas as pd
 display(pd.DataFrame(legend.get_entities(), columns=['legend_entity']))
 
@@ -52,18 +56,22 @@ display(pd.DataFrame(legend.get_entities(), columns=['legend_entity']))
 
 # MAGIC %md
 # MAGIC ## Legend schema
-# MAGIC We can create the spark schema for any Legend entity of type `Class`. 
+# MAGIC We can create the spark schema for any Legend entity of type `Class`.
 # MAGIC This process will recursively loop through each of its underlying fields, enums and possibly nested properties and supertypes.
 
 # COMMAND ----------
 
+# Get the Spark schema for our Employee entity
+# This translates Legend's type system into Spark's type system
 schema = legend.get_schema("databricks::entity::employee")
 
 # COMMAND ----------
 
+# Display the schema details in a readable format
+# This shows field names, types, whether they're optional, and their descriptions
 import pandas as pd
 display(pd.DataFrame(
-  [[f.name, str(f.dataType), f.nullable, f.metadata['comment']] for f in schema.fields], 
+  [[f.name, str(f.dataType), f.nullable, f.metadata['comment']] for f in schema.fields],
   columns=['field', 'type', 'optional', 'description']
 ))
 
@@ -75,13 +83,16 @@ display(pd.DataFrame(
 
 # COMMAND ----------
 
+# Get field name transformations defined in our Legend mapping
+# This tells us how source JSON fields map to our Delta table columns
 transformations = legend.get_transformations("databricks::mapping::employee_delta")
 
 # COMMAND ----------
 
+# Display the mappings in a readable format
 import pandas as pd
 display(pd.DataFrame(
-  [[e, transformations[e]] for e in transformations], 
+  [[e, transformations[e]] for e in transformations],
   columns=['from_column', 'to_column']
 ))
 
@@ -89,8 +100,8 @@ display(pd.DataFrame(
 
 # MAGIC %md
 # MAGIC ## Legend expectations
-# MAGIC Given the `multiplicity` properties, we can 
-# MAGIC detect if a field is optional or not or list has the right number of elements. Given an `enumeration`, 
+# MAGIC Given the `multiplicity` properties, we can
+# MAGIC detect if a field is optional or not or list has the right number of elements. Given an `enumeration`,
 # MAGIC we check for value consistency. These will be considered **technical expectations** and converted into SQL constraints. In addition to the rules derived from the schema itself, we also support the conversion of **business expectations**
 # MAGIC from the PURE language to SQL expressions. We generate a legend
 # MAGIC execution plan against a Databricks runtime, hence operating against relational legend `mapping` rather
@@ -98,13 +109,16 @@ display(pd.DataFrame(
 
 # COMMAND ----------
 
+# Get data quality expectations from the Legend model
+# These come from both technical constraints and business rules
 expectations = legend.get_expectations("databricks::mapping::employee_delta")
 
 # COMMAND ----------
 
+# Display the expectations and their SQL implementations
 import pandas as pd
 display(pd.DataFrame(
-  [[e, expectations[e]] for e in expectations], 
+  [[e, expectations[e]] for e in expectations],
   columns=['expectation', 'constraint']
 ))
 
@@ -116,13 +130,16 @@ display(pd.DataFrame(
 
 # COMMAND ----------
 
+# Get derived field definitions from the Legend model
+# These are fields that are computed rather than stored
 derivations = legend.get_derivations("databricks::mapping::employee_delta")
 
 # COMMAND ----------
 
+# Display the derivation expressions
 import pandas as pd
 display(pd.DataFrame(
-  [[e, derivations[e]] for e in derivations], 
+  [[e, derivations[e]] for e in derivations],
   columns=['column', 'expression']
 ))
 
@@ -134,21 +151,25 @@ display(pd.DataFrame(
 
 # COMMAND ----------
 
+# Get the target table name from our Legend mapping
 dst_table = legend.get_table("databricks::mapping::employee_delta")
 dst_db = dst_table.split('.')[0]
 dst_tb = dst_table.split('.')[1]
 
 # COMMAND ----------
 
+# Create database if needed and ensure clean table creation
 _ = sql("CREATE DATABASE IF NOT EXISTS {}".format(dst_db))
 _ = sql("DROP TABLE IF EXISTS {}".format(dst_table))
 
 # COMMAND ----------
 
+# Create the Delta table with our Legend-defined structure
 legend.create_table("databricks::mapping::employee_delta")
 
 # COMMAND ----------
 
+# Display the created table's details
 display(sql("DESCRIBE EXTENDED {}".format(dst_table)))
 
 # COMMAND ----------
@@ -159,20 +180,21 @@ display(sql("DESCRIBE EXTENDED {}".format(dst_table)))
 
 # COMMAND ----------
 
-import uuid
-import shutil
-
-data_path = '/tmp/{}'.format(uuid.uuid4().hex)
-shutil.copyfile('data/MOCK_DATA.json', '/dbfs{}'.format(data_path))
+# Path to our sample JSON data in DBFS
+data_path = '/FileStore/legend/data/MOCK_DATA.json'
 
 # COMMAND ----------
 
+# Read the JSON data using our Legend-defined schema
+# This ensures data types match our expectations
 schema = legend.get_schema("databricks::entity::employee")
 schema_df = spark.read.format("json").schema(schema).load(data_path)
 display(schema_df.limit(10))
 
 # COMMAND ----------
 
+# Apply the field name transformations from our Legend mapping
+# This renames fields to match our target table structure
 transformations = legend.get_transformations("databricks::mapping::employee_delta")
 for from_column in transformations.keys():
   schema_df = schema_df.withColumnRenamed(from_column, transformations[from_column])
@@ -181,6 +203,8 @@ display(schema_df.limit(10))
 
 # COMMAND ----------
 
+# Write the transformed data to our Delta table
+# This will enforce all constraints defined in our Legend model
 schema_df.write.format("delta").mode("append").saveAsTable(dst_table)
 
 # COMMAND ----------
@@ -191,11 +215,15 @@ schema_df.write.format("delta").mode("append").saveAsTable(dst_table)
 
 # COMMAND ----------
 
+# Get the SQL query generated from our Legend model
+# This includes calculations for derived properties
 sql = legend.generate_sql('databricks::mapping::employee_delta')
 print(sql)
 
 # COMMAND ----------
 
+# Execute the query and display results
+# Note how derived fields like 'age' are computed automatically
 df = legend.query('databricks::mapping::employee_delta')
 display(df.limit(10))
 
@@ -206,6 +234,8 @@ display(df.limit(10))
 
 # COMMAND ----------
 
+# Execute a predefined Legend service
+# This service filters and transforms employee data
 df = legend.query('databricks::service::employee')
 display(df.limit(10))
 
@@ -216,6 +246,8 @@ display(df.limit(10))
 
 # COMMAND ----------
 
+# Execute a Legend service with groupBy operations
+# This service calculates employee statistics by skill
 df = legend.query('databricks::service::skills')
 display(df.limit(10))
 
@@ -223,15 +255,18 @@ display(df.limit(10))
 
 # MAGIC %md
 # MAGIC ## Reverse engineering PURE
-# MAGIC There might be some scenario where we have an existing physical model that we want to map to legend. We may have to code the entire PURE model, or derive most of it programmatically from our physical model. This will generate both the logical and phisical representation of a table as well as the expected mapping. 
+# MAGIC There might be some scenario where we have an existing physical model that we want to map to legend. We may have to code the entire PURE model, or derive most of it programmatically from our physical model. This will generate both the logical and phisical representation of a table as well as the expected mapping.
 
 # COMMAND ----------
 
+# Generate a Legend PURE model from our Delta table
+# This could be used as a starting point for modeling existing data
 from legend.delta import LegendCodeGen
 pure_model = LegendCodeGen().generate_from_table('databricks::legend', dst_db, dst_tb)
 
 # COMMAND ----------
 
+# Utility function to allow downloading the generated model
 import base64
 
 def download_pure(pure_model):
@@ -250,7 +285,7 @@ def download_pure(pure_model):
       function download() {{
         var element = document.createElement('a');
         element.setAttribute('href', 'data:text/plain;base64,{}');
-        element.setAttribute('download', 'model.txt');
+        element.setAttribute('download', 'model.pure');
         element.style.display = 'none';
         document.body.appendChild(element);
         element.click();
@@ -266,4 +301,5 @@ def download_pure(pure_model):
 
 # COMMAND ----------
 
+# Provide the generated model for download
 download_pure(pure_model)

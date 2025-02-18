@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/bash
 
 PWD="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 BUILD_DIR=$PWD/dist
