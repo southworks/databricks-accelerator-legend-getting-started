@@ -42,7 +42,26 @@ job_json = {
         "tasks": [
             {
                 "job_cluster_key": "legend_cluster",
-                "libraries": [],
+                "libraries": [
+                    {
+                        "pypi": {
+                            "package": "legend-delta==0.1.10"
+                        }
+                    },
+                    {
+                        "pypi": {
+                            "package": "PyYAML==6.0.2"
+                        }
+                    },
+                    {
+                        "maven": {
+                            "coordinates": "org.finos.legend-community:legend-delta:0.1.10"
+                        }
+                    },
+                    {
+                        "jar": "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"
+                    }
+                ],
                 "notebook_task": {
                     "notebook_path": f"notebooks/01_legend_delta"
                 },
@@ -55,8 +74,8 @@ job_json = {
                 "job_cluster_key": "legend_cluster",
                 "new_cluster": {
                     "spark_version": "10.4.x-scala2.12",
-                "spark_conf": {
-                    "spark.databricks.delta.formatCheck.enabled": "false"
+                    "spark_conf": {
+                        "spark.databricks.delta.formatCheck.enabled": "false"
                     },
                     "num_workers": 2,
                     "node_type_id": {"AWS": "i3.xlarge", "MSA": "Standard_DS3_v2", "GCP": "n1-highmem-4"},
