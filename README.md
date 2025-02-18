@@ -27,7 +27,7 @@ ___
 
 You can deploy the accelerator to Azure using the button below:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsouthworks%2Fdatabricks-accelerator-legend-getting-started%2Faccelerator-updates%2Fdeploy-azure%2Fmain.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsouthworks%2Fdatabricks-accelerator-legend-getting-started%2Fmain%2Fdeploy-azure%2Fmain.json)
 
 ## Manual Setup
 

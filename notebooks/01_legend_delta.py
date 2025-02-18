@@ -285,7 +285,7 @@ def download_pure(pure_model):
       function download() {{
         var element = document.createElement('a');
         element.setAttribute('href', 'data:text/plain;base64,{}');
-        element.setAttribute('download', 'model.txt');
+        element.setAttribute('download', 'model.pure');
         element.style.display = 'none';
         document.body.appendChild(element);
         element.click();
