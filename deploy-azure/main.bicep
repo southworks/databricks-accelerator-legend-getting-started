@@ -9,9 +9,6 @@ param newOrExistingWorkspace string = 'new'
 @maxLength(64)
 param databricksResourceName string
 
-@description('Specifies whether to deploy Azure Databricks workspace with Secure Cluster Connectivity (No Public IP) enabled or not')
-param disablePublicIp bool = false
-
 @description('The pricing tier of workspace.')
 @allowed([
   'standard'
@@ -43,7 +40,7 @@ resource newDatabricks 'Microsoft.Databricks/workspaces@2024-05-01' = if (newOrE
     managedResourceGroupId: managedResourceGroupId
     parameters: {
       enableNoPublicIp: {
-        value: disablePublicIp
+        value: false
       }
     }
   }
@@ -119,13 +116,13 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       databricks fs mkdirs "dbfs:/FileStore/legend"
       databricks fs mkdirs "dbfs:/FileStore/legend/jars"
 
-      echo "Uploading JAR to DBFS..."
+      echo "Uploading Legend JAR to DBFS..."
       if ! databricks fs cp "legend.jar" "dbfs:/FileStore/legend/jars/employee-model-entities-0.0.1-SNAPSHOT.jar"; then
-        echo "Failed to upload JAR to DBFS"
+        echo "Failed to upload Legend JAR to DBFS"
         exit 1
       fi
 
-      # Export job-template.json from workspace
+      # Add RUNME.py path into job-template.json
       databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json
       notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
       jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
