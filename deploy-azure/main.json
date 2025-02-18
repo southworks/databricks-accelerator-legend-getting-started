@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "5181856622260779663"
+      "templateHash": "3459301356332403498"
     }
   },
   "parameters": {
@@ -99,7 +99,7 @@
       "kind": "AzureCLI",
       "properties": {
         "azCliVersion": "2.9.1",
-        "scriptContent": "      set -e\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Test connection and wait for storage initialization\r\n      echo \"Testing connection and waiting for storage initialization...\"\r\n      max_attempts=30\r\n      attempt=0\r\n      while [ $attempt -lt $max_attempts ]; do\r\n        if databricks fs ls dbfs:/; then\r\n          echo \"Storage initialized successfully\"\r\n          break\r\n        fi\r\n        echo \"Waiting for storage initialization... (attempt $((attempt + 1)))\"\r\n        sleep 10\r\n        attempt=$((attempt + 1))\r\n      done\r\n      if [ $attempt -eq $max_attempts ]; then\r\n        echo \"Timeout waiting for storage initialization\"\r\n        exit 1\r\n      fi\r\n\r\n      repo_info=$(databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub)\r\n\r\n      REPO_ID=$(echo \"$repo_info\" | jq -r '.id')\r\n      databricks repos update ${REPO_ID} --branch ${BRANCH_NAME}\r\n\r\n      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/bicep/job-template.json > job-template.json\r\n      notebook_path=\"/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME\"\r\n      jq \".tasks[0].notebook_task.notebook_path = \\\"${notebook_path}\\\"\" job-template.json > job.json\r\n\r\n      job_page_url=$(databricks jobs submit --json @./job.json | jq -r '.run_page_url')\r\n      echo \"{\\\"job_page_url\\\": \\\"$job_page_url\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n      ",
+        "scriptContent": "      set -e\r\n      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh\r\n\r\n      # Test connection and wait for storage initialization\r\n      echo \"Testing connection and waiting for storage initialization...\"\r\n      max_attempts=30\r\n      attempt=0\r\n      while [ $attempt -lt $max_attempts ]; do\r\n        if databricks fs ls dbfs:/; then\r\n          echo \"Storage initialized successfully\"\r\n          break\r\n        fi\r\n        echo \"Waiting for storage initialization... (attempt $((attempt + 1)))\"\r\n        sleep 10\r\n        attempt=$((attempt + 1))\r\n      done\r\n      if [ $attempt -eq $max_attempts ]; then\r\n        echo \"Timeout waiting for storage initialization\"\r\n        exit 1\r\n      fi\r\n\r\n      repo_info=$(databricks repos create https://github.com/southworks/${ACCELERATOR_REPO_NAME} gitHub)\r\n\r\n      REPO_ID=$(echo \"$repo_info\" | jq -r '.id')\r\n      databricks repos update ${REPO_ID} --branch ${BRANCH_NAME}\r\n\r\n      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json\r\n      notebook_path=\"/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME\"\r\n      jq \".tasks[0].notebook_task.notebook_path = \\\"${notebook_path}\\\"\" job-template.json > job.json\r\n\r\n      job_page_url=$(databricks jobs submit --json @./job.json | jq -r '.run_page_url')\r\n      echo \"{\\\"job_page_url\\\": \\\"$job_page_url\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH\r\n      ",
         "environmentVariables": [
           {
             "name": "DATABRICKS_AZURE_RESOURCE_ID",
