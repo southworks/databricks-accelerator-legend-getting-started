@@ -150,7 +150,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       }
       {
         name: 'BRANCH_NAME'
-        value: 'add-job-template-runme'
+        value: 'main'
       }
     ]
     timeout: 'PT1H'
