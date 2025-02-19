@@ -29,6 +29,8 @@ You can deploy the accelerator to Azure using the button below:
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsouthworks%2Fdatabricks-accelerator-legend-getting-started%2Fmain%2Fbicep%2Fmain.json)
 
+[More details](./bicep/README.md)
+
 ## Manual Setup
 
 For a manual setup of a local instance of Legend, as well as a manual setup of an Azure Databricks resource, see [these instructions](docker/README.md).
