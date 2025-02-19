@@ -105,7 +105,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 
       # Download Legend JAR and upload to DBFS
       echo "Downloading Legend JAR from GitHub..."
-      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/${BRANCH_NAME}/deploy-azure/employee-model-entities-0.0.1-SNAPSHOT.jar"
+      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/${BRANCH_NAME}/bicep/employee-model-entities-0.0.1-SNAPSHOT.jar"
       if ! curl -L "$jar_url" -o legend.jar; then
         echo "Failed to download Legend JAR from GitHub"
         exit 1
@@ -123,7 +123,7 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       fi
 
       # Add RUNME.py path into job-template.json
-      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/deploy-azure/job-template.json > job-template.json
+      databricks workspace export /Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/bicep/job-template.json > job-template.json
       notebook_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}/RUNME"
       jq ".tasks[0].notebook_task.notebook_path = \"${notebook_path}\"" job-template.json > job.json
 
