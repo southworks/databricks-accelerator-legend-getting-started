@@ -46,7 +46,7 @@ resource jobCreation 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 
       # Download Legend JAR and upload to DBFS
       echo "Downloading Legend JAR from GitHub..."
-      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/${BRANCH_NAME}/bicep/employee-model-entities-0.0.1-SNAPSHOT.jar"
+      jar_url="https://raw.githubusercontent.com/southworks/${ACCELERATOR_REPO_NAME}/main/bicep/employee-model-entities-0.0.1-SNAPSHOT.jar"
       if ! curl -L "$jar_url" -o legend.jar; then
         echo "Failed to download Legend JAR from GitHub"
         exit 1
