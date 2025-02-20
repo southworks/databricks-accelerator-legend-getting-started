@@ -31,6 +31,24 @@ resource jobCreation 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       echo "Installing Databricks CLI..."
       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
 
+      # Wait for Azure Databricks resource to finish creating the MRG storage containers
+      echo "Testing connection and waiting for storage initialization..."
+      max_attempts=30
+      attempt=0
+      while [ $attempt -lt $max_attempts ]; do
+        if databricks fs ls dbfs:/; then
+          echo "Storage initialized successfully"
+          break
+        fi
+        echo "Waiting for storage initialization... (attempt $((attempt + 1)))"
+        sleep 10
+        attempt=$((attempt + 1))
+      done
+      if [ $attempt -eq $max_attempts ]; then
+        echo "Timeout waiting for storage initialization"
+        exit 1
+      fi
+
       # Check if the repo exists; if not, create it. If it exists, update it
       repo_path="/Users/${ARM_CLIENT_ID}/${ACCELERATOR_REPO_NAME}"
       repo_info=$(databricks repos get "${repo_path}" 2>/dev/null || true)
